@@ -88,7 +88,7 @@ pub mod tetrust {
         tiles: [[Tile; 16]; 20]
     }
 
-    #[derive(Clone, Copy, Debug)]
+    #[derive(Clone, Copy, Debug, PartialEq)]
     pub enum PieceEnum {
         O, S, Z, T, L, J, I 
     }
@@ -106,12 +106,60 @@ pub mod tetrust {
                         _ => (0, 0)
                     }
                 }
-                _ => {
-                    match state { 
+                PieceEnum::S | PieceEnum::Z => {
+                    match state % 2 {
+                        0 => (0, 1),
                         1 => (0, 2),
-                        3 => (1, 0),
                         _ => (0, 1)
                     }
+                }
+                _ => {
+                    match state { 
+                        1 => (1, 1),
+                        3 => (0, 2),
+                        _ => (0, 1)
+                    }
+                }
+            }
+        }
+        pub fn rot(state: u8, piece: &PieceEnum) -> (Vec<(u8, u8)>, Vec<(u8, u8)>) {
+            match piece {
+                PieceEnum::O => (Vec::new(), Vec::new()),
+                PieceEnum::I => match state % 2 { 
+                    0 => (vec![(0, 1), (2, 1), (3, 1)], vec![(1, 0), (1, 2), (1, 3)]),
+                    1 => (vec![(1, 0), (1, 2), (1, 3)], vec![(0, 1), (2, 1), (3, 1)]),
+                    _ => (vec![(0, 1), (2, 1), (3, 1)], vec![(1, 0), (1, 2), (1, 3)]),
+                },
+                PieceEnum::S => match state % 2 {
+                    0 => (vec![(0, 0), (2, 1)], vec![(0, 1), (0, 2)]),
+                    1 => (vec![(0, 1), (0, 2)], vec![(0, 0), (2, 1)]),
+                    _ => (vec![(0, 0), (3, 1)], vec![(0, 2), (0, 3)]),
+                },
+                PieceEnum::Z => match state % 2 {
+                    0 => (vec![(0, 2), (2, 1)], vec![(0, 0), (0, 1)]),
+                    1 => (vec![(0, 0), (0, 1)], vec![(0, 2), (2, 1)]),
+                    _ => (vec![(0, 2), (2, 1)], vec![(0, 0), (0, 1)]),
+                },
+                PieceEnum::T => match state {
+                    0 => (vec![(2, 1)], vec![(1, 0)]),
+                    1 => (vec![(1, 0)], vec![(0, 1)]),
+                    2 => (vec![(0, 1)], vec![(1, 2)]),
+                    3 => (vec![(1, 2)], vec![(2, 1)]),
+                    _ => (vec![(2, 1)], vec![(0, 0)]),
+                },
+                PieceEnum::L => match state {
+                    0 => (vec![(0, 1), (2, 1), (2, 2)], vec![(1, 0), (0, 2), (1, 2)]),
+                    1 => (vec![(1, 0), (2, 0), (1, 2)], vec![(0, 1), (2, 1), (2, 2)]),
+                    2 => (vec![(0, 0), (0, 1), (2, 1)], vec![(1, 0), (2, 0), (1, 2)]),
+                    3 => (vec![(1, 0), (0, 2), (1, 2)], vec![(0, 0), (0, 1), (2, 1)]),
+                    _ => (vec![(0, 1), (2, 1), (2, 2)], vec![(1, 0), (0, 2), (1, 2)]),
+                },
+                PieceEnum::J => match state {
+                    0 => (vec![(0, 1), (0, 2), (2, 1)], vec![(0, 0), (1, 0), (1, 2)]),
+                    1 => (vec![(1, 0), (1, 2), (2, 2)], vec![(0, 1), (0, 2), (2, 1)]),
+                    2 => (vec![(0, 1), (2, 0), (2, 1)], vec![(1, 0), (1, 2), (2, 2)]),
+                    3 => (vec![(0, 0), (1, 0), (1, 2)], vec![(0, 1), (2, 0), (2, 1)]),
+                    _ => (vec![(0, 1), (0, 2), (2, 1)], vec![(0, 0), (1, 0), (1, 2)]),
                 }
             }
         }
@@ -241,57 +289,33 @@ pub mod tetrust {
             tetris
         }
 
-        pub fn rotate_piece(&mut self) -> Result<(), String> {
+        pub fn rotate_piece(&mut self) -> Result<bool, String> {
             let x_c = self.active_piece.x;
             let y_c = self.active_piece.y;
-            if x_c >= 2 && (x_c + self.active_piece.buf.1 < 18) {
-                match self.active_piece.piece { 
-                    PieceEnum::O => {},
-                    PieceEnum::I => {
-                        let rots = [ ( (0, 1), (1, 0) ), ( (1, 2), (2, 1) ), ( (1, 3),  (3,1) ) ];
-                        for r in rots {
-                            if let Some(Tile(tile, ..)) = self.tile_canvas.get_tile(x_c + r.0.1, y_c + r.0.0){ 
-                                self.tile_canvas.set_tile(x_c + r.0.1, y_c + r.0.0, TileColor::Empty)?;
-                                self.tile_canvas.set_tile(x_c + r.1.1, y_c + r.1.0, tile)?;
-                            }
-                            else if let Some(Tile(tile, ..)) = self.tile_canvas.get_tile(x_c + r.1.1, y_c + r.1.0){ 
-                                self.tile_canvas.set_tile(x_c + r.1.1, y_c + r.1.0, TileColor::Empty)?;
-                                self.tile_canvas.set_tile(x_c + r.0.1, y_c + r.0.0, tile)?;
-                            }
-                        }
-                        self.tile_canvas.update();
-                    },
-                    _ => {
-                        let rots = [( (0, 1), (1, 0) ), ( (1, 0), (2, 1) ), ( (2, 1), (1, 2) ), ( (1, 2), (0, 1) ),
-                                  ( (0, 0), (2, 0) ), ( (2, 0), (2, 2) ), ( (2, 2), (0, 2) ), ( (0, 2), (0, 0) ), ( (1, 1), (1, 1) )];
-                        let mut colors: [[TileColor; 3]; 3] = [[TileColor::Empty; 3]; 3];
-                        for r in rots {
-                          let tile = self.tile_canvas.get_tile(x_c + r.0.1, y_c + r.0.0);
-                          match tile {
-                              None => {},
-                              Some(n) => 
-                              {
-                                  colors[r.1.1][r.1.0] = n.0;
-                                  self.tile_canvas.set_tile(x_c + r.0.1, y_c + r.0.0, TileColor::Empty)?;
-                              }
+            let mut collision = false;
+            if x_c >= 2 && (x_c + self.active_piece.buf.1 - if self.active_piece.piece == PieceEnum::I { 1 } else {0}  < 18) {
 
-                            };
-                        };
-                        for i in 0..3 { 
-                            for j in 0..3 { 
-                                self.tile_canvas.set_tile(x_c + i, y_c + j, colors[i as usize][j as usize])?;
-                            }
-                        }
-                        self.tile_canvas.update();
+                let rots = PieceEnum::rot(self.active_piece.state, &self.active_piece.piece);
+                if rots.0.iter().all(|&x| self.tile_canvas.get_tile(x_c + x.1 as u16, y_c + x.0 as u16).is_none()){
+                    for r in rots.1 {
+                        self.tile_canvas.set_tile(x_c + r.1 as u16, y_c + r.0 as u16, TileColor::Empty)?;
                     }
-                };
-                self.active_piece.state += 1;
-                self.active_piece.state %= 4;
-            
-                self.active_piece.buf = PieceEnum::buf(self.active_piece.state, &self.active_piece.piece);
+                    for r in rots.0 {
+                        self.tile_canvas.set_tile(x_c + r.1 as u16, y_c + r.0 as u16, self.pieces[self.active_piece.piece].1)?;
+                        collision |= match self.tile_canvas.get_tile(x_c + r.1 as u16, y_c + r.0 as u16 + 1) {
+                                    Some(t) => !t.1, 
+                                    None => false
+                                };
+                    }
+                    self.tile_canvas.update();
+                    self.active_piece.state += 1;
+                    self.active_piece.state %= 4;
+                
+                    self.active_piece.buf = PieceEnum::buf(self.active_piece.state, &self.active_piece.piece);
+                }
             }
 
-            Ok(())
+            Ok(collision)
         }
 
         pub fn move_piece(&mut self, x: i16, y: i16) -> Result<bool, String>  { 
@@ -376,7 +400,13 @@ fn main() -> Result<(), String> {
     'running: loop {
         for event in sdl_context.event_pump()?.poll_iter() {
             match event {
-                Event::KeyDown{keycode: Some(Keycode::Up), ..} => { tetris.rotate_piece()?; },
+                Event::KeyDown{keycode: Some(Keycode::Up), ..} => { 
+                    if tetris.rotate_piece()? == true {
+                        println!("Collision!");
+                        tetris.disable_piece();
+                        tetris.set_piece(rng.gen_range(2..16), 0, rand::random())?;
+                    }
+                },
                 Event::KeyDown{keycode: Some(Keycode::Down), ..} => {
                     if tetris.update_screen()? == true {
                         println!("Collision!");
