@@ -236,6 +236,13 @@ pub mod tetrust {
             }
             Ok(())
         }
+        pub fn set_tile_override(&mut self, x: u16, y: u16, color: TileColor) -> Result<(), String>{ 
+            let x_c = x as usize; 
+            let y_c = y as usize;
+            self.tiles[x_c][y_c].0 = color; 
+            self.canvas.copy(&self.textures[color], None, Rect::new(x_c as i32 * 32, y_c as i32 * 32, 32, 32))?;
+            Ok(())
+        }
         pub fn set_tile_state(&mut self, x: u16, y: u16, active: bool) {
             self.tiles[x as usize][(y % 16) as usize].1 = active
         }
@@ -249,6 +256,9 @@ pub mod tetrust {
                 }
             }
         
+        }
+        pub fn get_tile_override(&self, x: u16, y: u16) -> Tile { 
+            self.tiles[(x % 20) as usize][(y % 16) as usize]
         }
         pub fn draw_piece(&mut self, x: u16, y: u16, piece: &Piece) -> Result<(), String>{
             for i in 0..piece.0.len() {
@@ -346,12 +356,34 @@ pub mod tetrust {
                 self.active_piece.y = self.active_piece.y.wrapping_add(y as u16);
 
                 self.tile_canvas.update();
-                println!("{}, {:?}", collision, self.active_piece);
+                //println!("{}, {:?}", collision, self.active_piece);
             }
             Ok(collision)
         }
-        pub fn disable_piece(&mut self) {
+
+        pub fn clear_row(&mut self) -> Result<(), String> {
+            let y_c = self.active_piece.y;
+            for i in 0..4 {
+                if (2..18).all(|x| self.tile_canvas.get_tile(x, (y_c + i) % 15).is_some()) {
+                    println!("Tetris!");
+                    for n in 2..18 {
+                        let mut m = y_c + i;
+                        while self.tile_canvas.get_tile(n, m).is_some() {
+                            self.tile_canvas.set_tile_override(n, m, self.tile_canvas.get_tile_override(n, m - 1).0)?;
+                            m -= 1;
+                        }
+                        //self.tile_canvas.set_tile_override(n, m, TileColor::Empty)?;
+                        self.tile_canvas.set_tile_state(n, m + 1, true);
+                    }
+                }
+                //self.update_screen()?;
+            }
+            Ok(())
+        }
+
+        pub fn disable_piece(&mut self) -> Result<(), String> {
             let p = self.active_piece; 
+            self.clear_row()?;
             for i in 0..5 {
                 for j in 0..5 {
                     if let Some(..) = self.tile_canvas.get_tile(p.x + i, p.y + j) {
@@ -359,6 +391,7 @@ pub mod tetrust {
                     }
                 }
             }
+            Ok(())
         }
 
         pub fn update_screen(&mut self) -> Result<bool, String> {
@@ -390,7 +423,7 @@ fn main() -> Result<(), String> {
     let textures = TileTexture::new(&texture_creator)?;
 
     let pieces = Pieces::new();
-    let mut tetris = Tetris::new(game_canvas, textures, TetrisPiece { x: 13, y: 0, piece: PieceEnum::T, buf: PieceEnum::buf(0, &PieceEnum::T), state: 0}, pieces);
+    let mut tetris = Tetris::new(game_canvas, textures, TetrisPiece { x: 13, y: 0, piece: PieceEnum::Z, buf: PieceEnum::buf(0, &PieceEnum::Z), state: 0}, pieces);
 
     for i in 2..18 {
         tetris.tile_canvas.set_tile(i, 15, TileColor::Red)?;
@@ -403,14 +436,14 @@ fn main() -> Result<(), String> {
                 Event::KeyDown{keycode: Some(Keycode::Up), ..} => { 
                     if tetris.rotate_piece()? == true {
                         println!("Collision!");
-                        tetris.disable_piece();
+                        tetris.disable_piece()?;
                         tetris.set_piece(rng.gen_range(2..16), 0, rand::random())?;
                     }
                 },
                 Event::KeyDown{keycode: Some(Keycode::Down), ..} => {
                     if tetris.update_screen()? == true {
                         println!("Collision!");
-                        tetris.disable_piece();
+                        tetris.disable_piece()?;
                         tetris.set_piece(rng.gen_range(2..16), 3, rand::random())?;
                     };
 
