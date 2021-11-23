@@ -334,6 +334,15 @@ pub mod tetrust {
 
             Ok(collision)
         }
+        pub fn tile_check(tile: Option<Tile>, o_tile: Option<Tile>) -> bool {
+            if tile.is_some() && tile.unwrap().0 != TileColor::Empty && o_tile.is_some() && o_tile.unwrap().0 == TileColor::Empty {
+                                    true 
+            }
+            else {
+                false
+            }
+        }
+
         pub fn check_horizontal_collision(&mut self, x: i16) -> bool {
             let mut collision = false;
             if x != 0 {
@@ -341,21 +350,22 @@ pub mod tetrust {
                 match x > 0 {
                     true => {
                         for i in 0..4 { 
-                            let x_c = self.active_piece.x + (3 - self.active_piece.buf.1);
-                            println!("Check horizontal collision + {} {}", x_c, y_c + i);
-                            let tile = self.tile_canvas.get_tile(x_c, (y_c + i) % 15);
-                            if tile.is_some() && tile.unwrap().0 != TileColor::Empty && self.tile_canvas.get_tile(x_c + 1, (y_c + i) % 15).is_some() {
-                                collision = true 
+                            for j in [1, 2, 3] {
+                                let x_c = self.active_piece.x + j;
+                                let tile = self.tile_canvas.get_tile(x_c, (y_c + i) % 15);
+                                let o_tile = self.tile_canvas.get_tile(x_c + 1, (y_c + i) % 15);
+                                collision |= Tetris::tile_check(tile, o_tile);
+                                
                             }
                         }
                     }
                     false => {
                         for i in 0..4 { 
-                            let x_c = self.active_piece.x + self.active_piece.buf.0;
-                            println!("Check horizontal collision - {} {}", x_c, y_c + i);
-                            let tile = self.tile_canvas.get_tile(x_c, (y_c + i) % 15);
-                            if tile.is_some() && tile.unwrap().0 != TileColor::Empty && self.tile_canvas.get_tile(x_c - 1, (y_c + i) % 15).is_some() {
-                                collision = true 
+                            for j in [0, 1, 2] {
+                                let x_c = self.active_piece.x + j;
+                                let tile = self.tile_canvas.get_tile(x_c, (y_c + i) % 15);
+                                let o_tile = self.tile_canvas.get_tile(x_c - 1, (y_c + i) % 15);
+                                collision |= Tetris::tile_check(tile, o_tile);
                             }
                         }
                     }
@@ -408,11 +418,9 @@ pub mod tetrust {
                             self.tile_canvas.set_tile_override(n, m, self.tile_canvas.get_tile_override(n, m - 1).0)?;
                             m -= 1;
                         }
-                        //self.tile_canvas.set_tile_override(n, m, TileColor::Empty)?;
                         self.tile_canvas.set_tile_state(n, m + 1, true);
                     }
                 }
-                //self.update_screen()?;
             }
             Ok(())
         }
