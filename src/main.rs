@@ -106,10 +106,17 @@ pub mod tetrust {
                         _ => (0, 0)
                     }
                 }
-                PieceEnum::S | PieceEnum::Z => {
+                PieceEnum::S => {
                     match state % 2 {
                         0 => (0, 1),
                         1 => (0, 2),
+                        _ => (0, 1)
+                    }
+                }
+                PieceEnum::Z => {
+                    match state % 2 {
+                        0 => (0, 1),
+                        1 => (1, 1),
                         _ => (0, 1)
                     }
                 }
@@ -327,11 +334,41 @@ pub mod tetrust {
 
             Ok(collision)
         }
+        pub fn check_horizontal_collision(&mut self, x: i16) -> bool {
+            let mut collision = false;
+            if x != 0 {
+                let y_c = self.active_piece.y;
+                match x > 0 {
+                    true => {
+                        for i in 0..4 { 
+                            let x_c = self.active_piece.x + (3 - self.active_piece.buf.1);
+                            println!("Check horizontal collision + {} {}", x_c, y_c + i);
+                            let tile = self.tile_canvas.get_tile(x_c, (y_c + i) % 15);
+                            if tile.is_some() && tile.unwrap().0 != TileColor::Empty && self.tile_canvas.get_tile(x_c + 1, (y_c + i) % 15).is_some() {
+                                collision = true 
+                            }
+                        }
+                    }
+                    false => {
+                        for i in 0..4 { 
+                            let x_c = self.active_piece.x + self.active_piece.buf.0;
+                            println!("Check horizontal collision - {} {}", x_c, y_c + i);
+                            let tile = self.tile_canvas.get_tile(x_c, (y_c + i) % 15);
+                            if tile.is_some() && tile.unwrap().0 != TileColor::Empty && self.tile_canvas.get_tile(x_c - 1, (y_c + i) % 15).is_some() {
+                                collision = true 
+                            }
+                        }
+                    }
+                }
+            }
+            println!("{}", collision);
+            collision
+        }
 
         pub fn move_piece(&mut self, x: i16, y: i16) -> Result<bool, String>  { 
             let mut collision = false;
             let p = self.active_piece;
-            if !(x > 0 && p.x + (4 - p.buf.1) > 17) && !(x < 0 && p.x + p.buf.0 < 3) {
+            if !(x > 0 && p.x + (4 - p.buf.1) > 17) && !(x < 0 && p.x + p.buf.0 < 3) && !(self.check_horizontal_collision(x)){
                 for i in match x < 0 {
                     false => [3, 2, 1, 0],
                     true => [0, 1, 2, 3]
@@ -356,7 +393,6 @@ pub mod tetrust {
                 self.active_piece.y = self.active_piece.y.wrapping_add(y as u16);
 
                 self.tile_canvas.update();
-                //println!("{}, {:?}", collision, self.active_piece);
             }
             Ok(collision)
         }
