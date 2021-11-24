@@ -11,9 +11,9 @@ pub mod tetrust {
     use sdl2::surface::Surface;
     use sdl2::rect::Rect;
 
-    const TILE_CANVAS_WIDTH: u16 = 16; 
+    const TILE_CANVAS_WIDTH: u16 = 20; 
     const TILE_CANVAS_HEIGHT: u16 = 20; 
-
+    
     #[derive(Clone, Copy, Debug, PartialEq)]
     pub enum TileColor {
         Empty, Red, Green, Blue, Purple, Cyan, Yellow, Orange
@@ -80,7 +80,7 @@ pub mod tetrust {
     pub struct TileCanvas<'t> { 
         canvas: sdl2::render::Canvas<Window>,
         textures: TileTexture<'t>,
-        tiles: [[Tile; 16]; 20]
+        tiles: [[Tile; TILE_CANVAS_HEIGHT as usize]; TILE_CANVAS_WIDTH as usize]
     }
 
     #[derive(Clone, Copy, Debug, PartialEq)]
@@ -223,7 +223,7 @@ pub mod tetrust {
 
     impl<'t> TileCanvas<'t> { 
         pub fn new(tile_canvas: sdl2::render::Canvas<Window>, tile_textures: TileTexture<'t>) -> TileCanvas {
-            TileCanvas { canvas: tile_canvas, tiles: [[Tile(TileColor::Empty, true); 16]; 20], textures: tile_textures}
+            TileCanvas { canvas: tile_canvas, tiles: [[Tile(TileColor::Empty, true); TILE_CANVAS_HEIGHT as usize]; TILE_CANVAS_WIDTH as usize], textures: tile_textures}
 
         }
         pub fn update(&mut self) {
@@ -246,10 +246,10 @@ pub mod tetrust {
             Ok(())
         }
         pub fn set_tile_state(&mut self, x: u16, y: u16, active: bool) {
-            self.tiles[x as usize][(y % 16) as usize].1 = active
+            self.tiles[x as usize][(y % TILE_CANVAS_HEIGHT) as usize].1 = active
         }
         pub fn get_tile(&self, x: u16, y: u16) -> Option<Tile> { 
-            let tile = self.tiles[(x % 20) as usize][(y % 16) as usize];
+            let tile = self.tiles[(x % TILE_CANVAS_WIDTH) as usize][(y % TILE_CANVAS_HEIGHT) as usize];
             match tile.0 { 
                 TileColor::Empty => None,
                 _ => match tile.1 {
@@ -260,7 +260,7 @@ pub mod tetrust {
         
         }
         pub fn get_tile_override(&self, x: u16, y: u16) -> Tile { 
-            self.tiles[(x % 20) as usize][(y % 16) as usize]
+            self.tiles[(x % TILE_CANVAS_WIDTH) as usize][(y % TILE_CANVAS_HEIGHT) as usize]
         }
         pub fn draw_piece(&mut self, x: u16, y: u16, piece: &Piece) -> Result<(), String>{
             for i in 0..piece.0.len() {
@@ -305,7 +305,7 @@ pub mod tetrust {
             let x_c = self.active_piece.x;
             let y_c = self.active_piece.y;
             let mut collision = false;
-            if x_c >= 2 && (x_c + self.active_piece.buf.1 - if self.active_piece.piece == PieceEnum::I { 1 } else {0}  < 18) {
+            if x_c >= 2 && (x_c + self.active_piece.buf.1 - if self.active_piece.piece == PieceEnum::I { 1 } else {0} < TILE_CANVAS_WIDTH + 2) {
 
                 let rots = PieceEnum::rot(self.active_piece.state, &self.active_piece.piece);
                 if rots.0.iter().all(|&x| self.tile_canvas.get_tile(x_c + x.1 as u16, y_c + x.0 as u16).is_none()){
@@ -347,8 +347,8 @@ pub mod tetrust {
                         for i in 0..4 { 
                             for j in [1, 2, 3] {
                                 let x_c = self.active_piece.x + j;
-                                let tile = self.tile_canvas.get_tile(x_c, (y_c + i) % 15);
-                                let o_tile = self.tile_canvas.get_tile(x_c + 1, (y_c + i) % 15);
+                                let tile = self.tile_canvas.get_tile(x_c, (y_c + i) % (TILE_CANVAS_WIDTH - 1));
+                                let o_tile = self.tile_canvas.get_tile(x_c + 1, (y_c + i) % (TILE_CANVAS_HEIGHT - 1));
                                 collision |= Tetris::tile_check(tile, o_tile);
                                 
                             }
@@ -358,8 +358,8 @@ pub mod tetrust {
                         for i in 0..4 { 
                             for j in [0, 1, 2] {
                                 let x_c = self.active_piece.x + j;
-                                let tile = self.tile_canvas.get_tile(x_c, (y_c + i) % 15);
-                                let o_tile = self.tile_canvas.get_tile(x_c - 1, (y_c + i) % 15);
+                                let tile = self.tile_canvas.get_tile(x_c, (y_c + i) % (TILE_CANVAS_HEIGHT - 1));
+                                let o_tile = self.tile_canvas.get_tile(x_c - 1, (y_c + i) % (TILE_CANVAS_HEIGHT - 1));
                                 collision |= Tetris::tile_check(tile, o_tile);
                             }
                         }
@@ -373,7 +373,7 @@ pub mod tetrust {
         pub fn move_piece(&mut self, x: i16, y: i16) -> Result<bool, String>  { 
             let mut collision = false;
             let p = self.active_piece;
-            if !(x > 0 && p.x + (4 - p.buf.1) > 17) && !(x < 0 && p.x + p.buf.0 < 3) && !(self.check_horizontal_collision(x)){
+            if !(x > 0 && p.x + (4 - p.buf.1) > TILE_CANVAS_WIDTH - 3) && !(x < 0 && p.x + p.buf.0 < 3) && !(self.check_horizontal_collision(x)){
                 for i in match x < 0 {
                     false => [3, 2, 1, 0],
                     true => [0, 1, 2, 3]
@@ -406,9 +406,9 @@ pub mod tetrust {
         pub fn clear_row(&mut self) -> Result<(), String> {
             let y_c = self.active_piece.y;
             for i in 0..4 {
-                if (2..18).all(|x| self.tile_canvas.get_tile(x, (y_c + i) % 15).is_some()) {
+                if (2..TILE_CANVAS_WIDTH - 2).all(|x| self.tile_canvas.get_tile(x, (y_c + i) % (TILE_CANVAS_HEIGHT - 1)).is_some()) {
                     println!("Tetris!");
-                    for n in 2..18 {
+                    for n in 2..TILE_CANVAS_WIDTH - 2 {
                         let mut m = y_c + i;
                         while self.tile_canvas.get_tile(n, m).is_some() {
                             self.tile_canvas.set_tile_override(n, m, self.tile_canvas.get_tile_override(n, m - 1).0)?;
@@ -448,6 +448,9 @@ use sdl2::keyboard::Keycode;
 use sdl2::rect::Rect;
 use crate::tetrust::*;
 
+const TILE_CANVAS_WIDTH: u16 = 20; 
+const TILE_CANVAS_HEIGHT: u16 = 20; 
+
 fn main() -> Result<(), String> {
     let mut rng = rand::thread_rng();
     let sdl_context = sdl2::init()?;
@@ -465,9 +468,9 @@ fn main() -> Result<(), String> {
     let pieces = Pieces::new();
     let mut tetris = Tetris::new(game_canvas, textures, TetrisPiece { x: 13, y: 0, piece: PieceEnum::Z, buf: PieceEnum::buf(0, &PieceEnum::Z), state: 0}, pieces);
 
-    for i in 2..18 {
-        tetris.tile_canvas.set_tile(i, 15, TileColor::Red)?;
-        tetris.tile_canvas.set_tile_state(i, 15, false);
+    for i in 2..TILE_CANVAS_WIDTH - 2 {
+        tetris.tile_canvas.set_tile(i, TILE_CANVAS_HEIGHT - 1, TileColor::Red)?;
+        tetris.tile_canvas.set_tile_state(i, TILE_CANVAS_HEIGHT - 1, false);
     }
     
     let mut ticks = 0;
@@ -513,7 +516,7 @@ fn main() -> Result<(), String> {
             }
         }
         ticks += 1;
-        if ticks % 32 == 0 {
+        if ticks % 16 == 0 {
             if tetris.update_screen()? == true {
                 println!("Collision!");
                 tetris.disable_piece()?;
