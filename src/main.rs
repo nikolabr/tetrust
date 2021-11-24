@@ -11,6 +11,9 @@ pub mod tetrust {
     use sdl2::surface::Surface;
     use sdl2::rect::Rect;
 
+    const TILE_CANVAS_WIDTH: u16 = 16; 
+    const TILE_CANVAS_HEIGHT: u16 = 20; 
+
     #[derive(Clone, Copy, Debug, PartialEq)]
     pub enum TileColor {
         Empty, Red, Green, Blue, Purple, Cyan, Yellow, Orange
@@ -19,27 +22,19 @@ pub mod tetrust {
     impl TileColor {
         fn get_asset_path(color: &TileColor) -> String {
             match color { 
-                TileColor::Empty => "assets/empty.bmp".to_string(),
-                TileColor::Red => "assets/red.bmp".to_string(),
-                TileColor::Green => "assets/green.bmp".to_string(),
-                TileColor::Blue => "assets/blue.bmp".to_string(),
-                TileColor::Cyan => "assets/cyan.bmp".to_string(),
-                TileColor::Purple => "assets/purple.bmp".to_string(),
-                TileColor::Yellow => "assets/yellow.bmp".to_string(),
-                TileColor::Orange => "assets/orange.bmp".to_string()
+                TileColor::Empty => "assets/empty.bmp".to_string(), TileColor::Red => "assets/red.bmp".to_string(),
+                TileColor::Green => "assets/green.bmp".to_string(), TileColor::Blue => "assets/blue.bmp".to_string(),
+                TileColor::Cyan => "assets/cyan.bmp".to_string(), TileColor::Purple => "assets/purple.bmp".to_string(),
+                TileColor::Yellow => "assets/yellow.bmp".to_string(), TileColor::Orange => "assets/orange.bmp".to_string()
             }
         }
     }
 
     pub struct TileTexture<'t> {
-        empty: Texture<'t>,
-        red: Texture<'t>,
-        green: Texture<'t>,
-        blue: Texture<'t>,
-        purple: Texture<'t>,
-        cyan: Texture<'t>,
-        yellow: Texture<'t>,
-        orange: Texture<'t>,
+        empty: Texture<'t>, red: Texture<'t>,
+        green: Texture<'t>, blue: Texture<'t>,
+        purple: Texture<'t>, cyan: Texture<'t>,
+        yellow: Texture<'t>, orange: Texture<'t>
     }
 
     impl<'t> TileTexture<'t> { 
@@ -336,7 +331,7 @@ pub mod tetrust {
         }
         pub fn tile_check(tile: Option<Tile>, o_tile: Option<Tile>) -> bool {
             if tile.is_some() && tile.unwrap().0 != TileColor::Empty && o_tile.is_some() && o_tile.unwrap().0 == TileColor::Empty {
-                                    true 
+                true 
             }
             else {
                 false
@@ -371,7 +366,7 @@ pub mod tetrust {
                     }
                 }
             }
-            println!("{}", collision);
+            //println!("{}", collision);
             collision
         }
 
@@ -392,6 +387,7 @@ pub mod tetrust {
                                     Some(t) => !t.1, 
                                     None => false
                                 };
+                                println!("{}", collision);
 
                                 self.tile_canvas.set_tile(x_i, y_j, TileColor::Empty)?;
                                 self.tile_canvas.set_tile(x_i.wrapping_add(x as u16), (y_j).wrapping_add(y as u16), tile)?;
@@ -473,6 +469,8 @@ fn main() -> Result<(), String> {
         tetris.tile_canvas.set_tile(i, 15, TileColor::Red)?;
         tetris.tile_canvas.set_tile_state(i, 15, false);
     }
+    
+    let mut ticks = 0;
 
     'running: loop {
         for event in sdl_context.event_pump()?.poll_iter() {
@@ -488,18 +486,24 @@ fn main() -> Result<(), String> {
                     if tetris.update_screen()? == true {
                         println!("Collision!");
                         tetris.disable_piece()?;
-                        tetris.set_piece(rng.gen_range(2..16), 3, rand::random())?;
+                        tetris.set_piece(rng.gen_range(2..16), 0, rand::random())?;
                     };
-
-                    std::thread::sleep(std::time::Duration::from_millis(20));
                 },
                 Event::KeyDown{keycode: Some(Keycode::Right), ..} => {
-                    tetris.move_piece(1, 0)?;
-                    std::thread::sleep(std::time::Duration::from_millis(20));
+                    if tetris.move_piece(1, 0)? == true {
+                        println!("Collision!");
+                        tetris.disable_piece()?;
+                        tetris.set_piece(rng.gen_range(2..16), 0, rand::random())?;
+                    };
+
                 },
                 Event::KeyDown{keycode: Some(Keycode::Left), ..} => {
-                    tetris.move_piece(-1, 0)?;
-                    std::thread::sleep(std::time::Duration::from_millis(20));
+                    if tetris.move_piece(-1, 0)? == true {
+                        println!("Collision!");
+                        tetris.disable_piece()?;
+                        tetris.set_piece(rng.gen_range(2..16), 0, rand::random())?;
+                    };
+
                 },
                 Event::Quit {..} |
                 Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
@@ -508,6 +512,17 @@ fn main() -> Result<(), String> {
                 _ => {}
             }
         }
+        ticks += 1;
+        if ticks % 32 == 0 {
+            if tetris.update_screen()? == true {
+                println!("Collision!");
+                tetris.disable_piece()?;
+                tetris.set_piece(rng.gen_range(2..16), 0, rand::random())?;
+            };
+        }
+
+        std::thread::sleep(std::time::Duration::from_millis(20));
+
     }
     Ok(())
 }
