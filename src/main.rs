@@ -415,6 +415,9 @@ pub mod tetrust {
                             m -= 1;
                         }
                         self.tile_canvas.set_tile_state(n, m + 1, true);
+                        for k in (1..=m).rev() {
+                            self.tile_canvas.set_tile_override(n, k, self.tile_canvas.get_tile_override(n, k - 1).0)?;
+                        }
                     }
                 }
             }
@@ -434,6 +437,20 @@ pub mod tetrust {
             Ok(())
         }
 
+        pub fn check_loss(&mut self) -> bool {
+        let mut loss = false;
+            for y in 0..3 {
+                for x in 2..TILE_CANVAS_WIDTH - 2 { 
+                    if let Some(tile) = self.tile_canvas.get_tile(x, y) {
+                        if tile.0 == TileColor::Empty { 
+                            loss = true 
+                        }
+                    }
+                }
+            }
+        loss
+        }
+
         pub fn update_screen(&mut self) -> Result<bool, String> {
             Ok(self.move_piece(0, 1)?)
         }
@@ -450,6 +467,13 @@ use crate::tetrust::*;
 
 const TILE_CANVAS_WIDTH: u16 = 20; 
 const TILE_CANVAS_HEIGHT: u16 = 20; 
+
+fn tetris_collision(tetris: &mut Tetris, x: u16) -> Result<(), String> {
+    println!("Collision!");
+    tetris.disable_piece()?;
+    tetris.set_piece(x, 0, rand::random())?;
+    Ok(())
+}
 
 fn main() -> Result<(), String> {
     let mut rng = rand::thread_rng();
@@ -480,31 +504,23 @@ fn main() -> Result<(), String> {
             match event {
                 Event::KeyDown{keycode: Some(Keycode::Up), ..} => { 
                     if tetris.rotate_piece()? == true {
-                        println!("Collision!");
-                        tetris.disable_piece()?;
-                        tetris.set_piece(rng.gen_range(2..16), 0, rand::random())?;
+                        tetris_collision(&mut tetris, rng.gen_range(2..TILE_CANVAS_WIDTH - 3))?;
                     }
                 },
                 Event::KeyDown{keycode: Some(Keycode::Down), ..} => {
                     if tetris.update_screen()? == true {
-                        println!("Collision!");
-                        tetris.disable_piece()?;
-                        tetris.set_piece(rng.gen_range(2..16), 0, rand::random())?;
+                        tetris_collision(&mut tetris, rng.gen_range(2..TILE_CANVAS_WIDTH - 3))?;
                     };
                 },
                 Event::KeyDown{keycode: Some(Keycode::Right), ..} => {
                     if tetris.move_piece(1, 0)? == true {
-                        println!("Collision!");
-                        tetris.disable_piece()?;
-                        tetris.set_piece(rng.gen_range(2..16), 0, rand::random())?;
+                        tetris_collision(&mut tetris, rng.gen_range(2..TILE_CANVAS_WIDTH - 3))?;
                     };
 
                 },
                 Event::KeyDown{keycode: Some(Keycode::Left), ..} => {
                     if tetris.move_piece(-1, 0)? == true {
-                        println!("Collision!");
-                        tetris.disable_piece()?;
-                        tetris.set_piece(rng.gen_range(2..16), 0, rand::random())?;
+                        tetris_collision(&mut tetris, rng.gen_range(2..TILE_CANVAS_WIDTH - 3))?;
                     };
 
                 },
@@ -517,10 +533,12 @@ fn main() -> Result<(), String> {
         }
         ticks += 1;
         if ticks % 16 == 0 {
+            if tetris.check_loss() == true { 
+                break 'running 
+            }
+
             if tetris.update_screen()? == true {
-                println!("Collision!");
-                tetris.disable_piece()?;
-                tetris.set_piece(rng.gen_range(2..16), 0, rand::random())?;
+                tetris_collision(&mut tetris, rng.gen_range(2..TILE_CANVAS_WIDTH - 3))?;
             };
         }
 
