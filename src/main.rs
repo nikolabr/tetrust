@@ -11,12 +11,14 @@ pub mod tetrust {
     use sdl2::surface::Surface;
     use sdl2::rect::Rect;
 
-    const TILE_CANVAS_WIDTH: u16 = 20; 
-    const TILE_CANVAS_HEIGHT: u16 = 20; 
+    pub const TILE_CANVAS_WIDTH: u16 = 20; 
+    pub const TILE_CANVAS_HEIGHT: u16 = 20; 
+
+    pub const BACKGROUND_COLOR: sdl2::pixels::Color = sdl2::pixels::Color::RGB(102, 102, 153);
     
     #[derive(Clone, Copy, Debug, PartialEq)]
     pub enum TileColor {
-        Empty, Red, Green, Blue, Purple, Cyan, Yellow, Orange
+        Empty, Red, Green, Blue, Purple, Cyan, Yellow, Orange, Gray
     }
 
     impl TileColor {
@@ -25,7 +27,8 @@ pub mod tetrust {
                 TileColor::Empty => "assets/empty.bmp".to_string(), TileColor::Red => "assets/red.bmp".to_string(),
                 TileColor::Green => "assets/green.bmp".to_string(), TileColor::Blue => "assets/blue.bmp".to_string(),
                 TileColor::Cyan => "assets/cyan.bmp".to_string(), TileColor::Purple => "assets/purple.bmp".to_string(),
-                TileColor::Yellow => "assets/yellow.bmp".to_string(), TileColor::Orange => "assets/orange.bmp".to_string()
+                TileColor::Yellow => "assets/yellow.bmp".to_string(), TileColor::Orange => "assets/orange.bmp".to_string(),
+                TileColor::Gray => "assets/gray.bmp".to_string()
             }
         }
     }
@@ -34,7 +37,8 @@ pub mod tetrust {
         empty: Texture<'t>, red: Texture<'t>,
         green: Texture<'t>, blue: Texture<'t>,
         purple: Texture<'t>, cyan: Texture<'t>,
-        yellow: Texture<'t>, orange: Texture<'t>
+        yellow: Texture<'t>, orange: Texture<'t>,
+        gray: Texture<'t>
     }
 
     impl<'t> TileTexture<'t> { 
@@ -53,6 +57,7 @@ pub mod tetrust {
                               cyan: TileTexture::load_from_path(texture_creator, TileColor::Cyan)?,
                               yellow: TileTexture::load_from_path(texture_creator, TileColor::Yellow)?,
                               orange: TileTexture::load_from_path(texture_creator, TileColor::Orange)?,
+                              gray: TileTexture::load_from_path(texture_creator, TileColor::Gray)?,
                             })
                 }
     }
@@ -70,6 +75,7 @@ pub mod tetrust {
                 TileColor::Cyan => &self.cyan,
                 TileColor::Yellow => &self.yellow,
                 TileColor::Orange => &self.orange,
+                TileColor::Gray => &self.gray,
             }
         }
     }
@@ -223,14 +229,20 @@ pub mod tetrust {
 
     impl<'t> TileCanvas<'t> { 
         pub fn new(tile_canvas: sdl2::render::Canvas<Window>, tile_textures: TileTexture<'t>) -> TileCanvas {
-            TileCanvas { canvas: tile_canvas, tiles: [[Tile(TileColor::Empty, true); TILE_CANVAS_HEIGHT as usize]; TILE_CANVAS_WIDTH as usize], textures: tile_textures}
+            let mut canvas = TileCanvas { canvas: tile_canvas, tiles: [[Tile(TileColor::Empty, true); TILE_CANVAS_HEIGHT as usize]; TILE_CANVAS_WIDTH as usize], textures: tile_textures};
+            for x in 2..(TILE_CANVAS_WIDTH-2){
+                for y in 0..TILE_CANVAS_HEIGHT { 
+                    canvas.set_tile(x, y, TileColor::Empty).unwrap();
+                    }
+            }
+            canvas
 
         }
         pub fn update(&mut self) {
             self.canvas.present();
         }
         pub fn set_tile(&mut self, x: u16, y: u16, color: TileColor) -> Result<(), String>{ 
-            let x_c = x as usize; 
+            let x_c = std::cmp::min(x, TILE_CANVAS_WIDTH - 2) as usize; 
             let y_c = y as usize;
             if self.tiles[x_c][y_c].1 == true {
                 self.tiles[x_c][y_c].0 = color; 
@@ -252,6 +264,12 @@ pub mod tetrust {
             let tile = self.tiles[(x % TILE_CANVAS_WIDTH) as usize][(y % TILE_CANVAS_HEIGHT) as usize];
             match tile.0 { 
                 TileColor::Empty => None,
+                TileColor::Gray => if y < TILE_CANVAS_HEIGHT - 1 {
+                    None 
+                    }
+                else { 
+                    Some(Tile(TileColor::Empty, false))
+                }
                 _ => match tile.1 {
                     true => Some(tile),
                     false => Some(Tile(TileColor::Empty, false))
@@ -285,7 +303,9 @@ pub mod tetrust {
     pub struct Tetris<'t> {
         pub tile_canvas: TileCanvas<'t>,
         active_piece: TetrisPiece,
-        pieces: Pieces
+        pieces: Pieces,
+        score: u16,
+        font: sdl2::ttf::Font<'t, 't>
     }
 
     impl<'t> Tetris<'t> { 
@@ -295,8 +315,8 @@ pub mod tetrust {
         
             Ok((x_c, y_c))
         }
-        pub fn new(canvas: sdl2::render::Canvas<Window>, tile_textures: TileTexture<'t>, tetris_piece: TetrisPiece, tetris_pieces: Pieces) -> Tetris { 
-            let mut tetris = Tetris { tile_canvas: TileCanvas::new(canvas, tile_textures), active_piece: tetris_piece, pieces: tetris_pieces};
+        pub fn new(canvas: sdl2::render::Canvas<Window>, tile_textures: TileTexture<'t>, tetris_piece: TetrisPiece, tetris_pieces: Pieces, game_font: sdl2::ttf::Font<'t, 't>) -> Tetris<'t> { 
+            let mut tetris = Tetris { tile_canvas: TileCanvas::new(canvas, tile_textures), active_piece: tetris_piece, pieces: tetris_pieces, score: 0, font: game_font};
             tetris.set_piece(tetris_piece.x, tetris_piece.y, tetris_piece.piece).unwrap();
             tetris
         }
@@ -305,7 +325,7 @@ pub mod tetrust {
             let x_c = self.active_piece.x;
             let y_c = self.active_piece.y;
             let mut collision = false;
-            if x_c >= 2 && (x_c + self.active_piece.buf.1 - if self.active_piece.piece == PieceEnum::I { 1 } else {0} < TILE_CANVAS_WIDTH + 2) {
+            if x_c >= 2 && (x_c + self.active_piece.buf.1 + if self.active_piece.piece == PieceEnum::I { 1 } else {0} < TILE_CANVAS_WIDTH - 2) {
 
                 let rots = PieceEnum::rot(self.active_piece.state, &self.active_piece.piece);
                 if rots.0.iter().all(|&x| self.tile_canvas.get_tile(x_c + x.1 as u16, y_c + x.0 as u16).is_none()){
@@ -419,6 +439,7 @@ pub mod tetrust {
                             self.tile_canvas.set_tile_override(n, k, self.tile_canvas.get_tile_override(n, k - 1).0)?;
                         }
                     }
+                self.update_score()?;
                 }
             }
             Ok(())
@@ -454,6 +475,21 @@ pub mod tetrust {
         pub fn update_screen(&mut self) -> Result<bool, String> {
             Ok(self.move_piece(0, 1)?)
         }
+
+        pub fn update_score(&mut self) -> Result<(), String> {
+            self.tile_canvas.canvas.set_draw_color(BACKGROUND_COLOR);
+            self.tile_canvas.canvas.fill_rect(Rect::new(64, 640, 192, 64))?;
+
+            self.score += 1; 
+            let font_surface = self.font.render(&(String::from("Score: ") + &self.score.to_string())).blended(sdl2::pixels::Color::RGB(255, 255, 255)).map_err(|e| e.to_string()).unwrap(); 
+            let texture_creator = self.tile_canvas.canvas.texture_creator();
+            let texture = texture_creator.create_texture_from_surface(font_surface).map_err(|e| e.to_string()).unwrap();
+
+            self.tile_canvas.canvas.copy(&texture, None, Rect::new(64, 640, 192, 64))?;
+            self.tile_canvas.canvas.present();
+
+            Ok(())
+        }
     }
 
 }
@@ -462,11 +498,9 @@ use sdl2::event::Event;
 use rand::distributions::{Distribution, Standard};
 use rand::Rng;
 use sdl2::keyboard::Keycode;
+use sdl2::pixels::Color;
 use sdl2::rect::Rect;
 use crate::tetrust::*;
-
-const TILE_CANVAS_WIDTH: u16 = 20; 
-const TILE_CANVAS_HEIGHT: u16 = 20; 
 
 fn tetris_collision(tetris: &mut Tetris, x: u16) -> Result<(), String> {
     println!("Collision!");
@@ -475,52 +509,68 @@ fn tetris_collision(tetris: &mut Tetris, x: u16) -> Result<(), String> {
     Ok(())
 }
 
+
 fn main() -> Result<(), String> {
     let mut rng = rand::thread_rng();
     let sdl_context = sdl2::init()?;
     let video_subsystem = sdl_context.video()?;
+    let ttf_context = sdl2::ttf::init().map_err(|e| e.to_string())?;
+
+    let mut font = ttf_context.load_font("assets/font.ttf", 128)?;
+    font.set_style(sdl2::ttf::FontStyle::NORMAL);
+    let font_surface = font.render("Score: 0").blended(Color::RGB(255, 255, 255)).map_err(|e| e.to_string())?;
 
     let game_window = video_subsystem.window("rust-sdl2 demo", 640, 768)
         .position_centered()
         .build().map_err(|e| e.to_string())?;
 
-    let game_canvas = game_window.into_canvas().software().build().map_err(|e| e.to_string())?;
+    let mut game_canvas = game_window.into_canvas().software().build().map_err(|e| e.to_string())?;
+    game_canvas.set_draw_color(BACKGROUND_COLOR);
+    game_canvas.fill_rect(None)?;
 
     let texture_creator = game_canvas.texture_creator();
     let textures = TileTexture::new(&texture_creator)?;
+    let font_texture = texture_creator.create_texture_from_surface(font_surface).map_err(|e| e.to_string())?;
+
+    game_canvas.copy(&font_texture, None, Rect::new(64, 640, 192, 64))?;
+    game_canvas.present();
 
     let pieces = Pieces::new();
-    let mut tetris = Tetris::new(game_canvas, textures, TetrisPiece { x: 13, y: 0, piece: PieceEnum::Z, buf: PieceEnum::buf(0, &PieceEnum::Z), state: 0}, pieces);
+    let mut tetris = Tetris::new(game_canvas, textures, TetrisPiece { x: 13, y: 0, piece: PieceEnum::I, buf: PieceEnum::buf(0, &PieceEnum::I), state: 0}, pieces, font);
 
     for i in 2..TILE_CANVAS_WIDTH - 2 {
-        tetris.tile_canvas.set_tile(i, TILE_CANVAS_HEIGHT - 1, TileColor::Red)?;
+        tetris.tile_canvas.set_tile(i, TILE_CANVAS_HEIGHT - 1, TileColor::Gray)?;
         tetris.tile_canvas.set_tile_state(i, TILE_CANVAS_HEIGHT - 1, false);
+    }
+    for i in 0..TILE_CANVAS_HEIGHT { 
+        tetris.tile_canvas.set_tile(1, i, TileColor::Gray)?;
+        tetris.tile_canvas.set_tile(TILE_CANVAS_WIDTH - 1, i, TileColor::Gray)?;
     }
     
     let mut ticks = 0;
-
+    
     'running: loop {
         for event in sdl_context.event_pump()?.poll_iter() {
             match event {
                 Event::KeyDown{keycode: Some(Keycode::Up), ..} => { 
                     if tetris.rotate_piece()? == true {
-                        tetris_collision(&mut tetris, rng.gen_range(2..TILE_CANVAS_WIDTH - 3))?;
+                        tetris_collision(&mut tetris, rng.gen_range(2..TILE_CANVAS_WIDTH - 5))?;
                     }
                 },
                 Event::KeyDown{keycode: Some(Keycode::Down), ..} => {
                     if tetris.update_screen()? == true {
-                        tetris_collision(&mut tetris, rng.gen_range(2..TILE_CANVAS_WIDTH - 3))?;
+                        tetris_collision(&mut tetris, rng.gen_range(2..TILE_CANVAS_WIDTH - 5))?;
                     };
                 },
                 Event::KeyDown{keycode: Some(Keycode::Right), ..} => {
                     if tetris.move_piece(1, 0)? == true {
-                        tetris_collision(&mut tetris, rng.gen_range(2..TILE_CANVAS_WIDTH - 3))?;
+                        tetris_collision(&mut tetris, rng.gen_range(2..TILE_CANVAS_WIDTH - 5))?;
                     };
 
                 },
                 Event::KeyDown{keycode: Some(Keycode::Left), ..} => {
                     if tetris.move_piece(-1, 0)? == true {
-                        tetris_collision(&mut tetris, rng.gen_range(2..TILE_CANVAS_WIDTH - 3))?;
+                        tetris_collision(&mut tetris, rng.gen_range(2..TILE_CANVAS_WIDTH - 5))?;
                     };
 
                 },
@@ -538,7 +588,7 @@ fn main() -> Result<(), String> {
             }
 
             if tetris.update_screen()? == true {
-                tetris_collision(&mut tetris, rng.gen_range(2..TILE_CANVAS_WIDTH - 3))?;
+                tetris_collision(&mut tetris, rng.gen_range(2..TILE_CANVAS_WIDTH - 5))?;
             };
         }
 
